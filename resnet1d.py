@@ -438,3 +438,68 @@ def wide_resnet101_2(pretrained: bool = False, progress: bool = True, **kwargs: 
     return _resnet('wide_resnet101_2', Bottleneck, [3, 4, 23, 3],
                    pretrained, progress, **kwargs)
 
+def train(model_resnet, X_train, y_train, X_val, y_val, device='cuda'):
+    model_resnet.train()
+    print(f"Training data shape after split: {X_train.shape}")
+    print(f"Training labels shape after split: {y_train.shape}")
+    print(f"Validation data shape: {X_val.shape}")
+    print(f"Validation labels shape: {y_val.shape}")
+
+    # Define the optimizer and loss function
+    optimizer = optim.Adam(model_resnet.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+
+    # Move the model to GPU if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_resnet.to(device)
+
+    # Convert data to PyTorch tensors
+    X_train_tensor = torch.from_numpy(X_train).float().to(device)
+    y_train_tensor = torch.from_numpy(y_train).long().to(device)
+    X_val_tensor = torch.from_numpy(X_val).float().to(device)
+    y_val_tensor = torch.from_numpy(y_val).long().to(device)
+
+    # Training loop (basic example)
+    num_epochs = 50
+    batch_size = 1024
+
+    train_dataset = torch.utils.data.TensorDataset(X_train_tensor, y_train_tensor)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    val_dataset = torch.utils.data.TensorDataset(X_val_tensor, y_val_tensor)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    for epoch in range(num_epochs):
+        model_resnet.train()
+        running_loss = 0.0
+        for inputs, labels in train_loader:
+            optimizer.zero_grad()
+            outputs, _ = model_resnet(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        # Validation
+        model_resnet.eval()
+        val_loss = 0.0
+        correct_predictions = 0
+        total_predictions = 0
+        with torch.no_grad():
+            for inputs, labels in val_loader:
+                outputs, _ = model_resnet(inputs)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+
+                _, predicted = torch.max(outputs.data, 1)
+                total_predictions += labels.size(0)
+                correct_predictions += (predicted == labels).sum().item()
+
+        epoch_loss = running_loss / len(train_loader)
+        epoch_val_loss = val_loss / len(val_loader)
+        val_accuracy = correct_predictions / total_predictions
+
+        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {epoch_loss:.4f}, Val Loss: {epoch_val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}")
+
+        print("Training finished.")
+    return model_resnet
